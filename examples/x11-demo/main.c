@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include <xcb/xcb.h>
 #include <xcb/xcb_util.h>
 #include <xcb/xcb_icccm.h>
-#include <xcb/xcb_renderutil.h>
 
 #include <cairo/cairo.h>
 #include <cairo/cairo-xcb.h>
@@ -42,12 +42,12 @@ Clay_Dimensions measureTextFunction(Clay_StringSlice text, Clay_TextElementConfi
     cairo_t *cr = userData;
     const char* str = Clay_StringSliceIntoCString(text);
 
-    //cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
-    //cairo_set_font_size(cr, config->fontSize);
+    cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+    cairo_set_font_size(cr, config->fontSize);
     cairo_text_extents_t extents;
     cairo_text_extents(cr, str, &extents);
 
-    return (Clay_Dimensions){ extents.width, extents.height + extents.y_advance };
+    return (Clay_Dimensions){ extents.width, extents.height };
 }
 
 void clay_setup() {
@@ -142,13 +142,17 @@ void draw(xcb_connection_t *conn, xcb_window_t window, cairo_surface_t *surface,
             case CLAY_RENDER_COMMAND_TYPE_TEXT: {
                 Clay_BoundingBox *box = &cmd->boundingBox;
                 Clay_TextRenderData *text = &cmd->renderData.text;
-                Clay_StringSlice *str = &text->stringContents;
 
-                //cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
-                //cairo_set_font_size(cr, text->fontSize);
+                cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+                cairo_set_font_size(cr, text->fontSize);
                 cairo_set_source_rgb(cr, text->textColor.r / 255.0, text->textColor.r / 255.0, text->textColor.r / 255.0);
-                cairo_move_to(cr, box->x, box->y + 8.0);
-                cairo_show_text(cr, str->baseChars);
+
+                const char* cstr = Clay_StringSliceIntoCString(text->stringContents);
+                cairo_text_extents_t extents;
+                cairo_text_extents(cr, cstr, &extents);
+
+                cairo_move_to(cr, box->x - extents.x_bearing, box->y - extents.y_bearing);
+                cairo_show_text(cr, cstr);
                 break;
             }
             default: break;
@@ -203,6 +207,40 @@ int main() {
     while (true) {
         event = xcb_poll_for_event(conn);
         draw(conn, window, surface, cr);
+
+        /*const char *str = "Hello, World";
+
+        cairo_push_group(cr);
+
+        cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+        cairo_set_font_size(cr, 120);
+
+        cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
+        cairo_paint(cr);
+        cairo_surface_flush(surface);
+
+        cairo_text_extents_t extents;
+        cairo_text_extents(cr, str, &extents);
+
+        cairo_set_source_rgb(cr, 0, 1, 1);
+        //cairo_rectangle(cr, 10, 10, extents.x_advance, extents.height);
+        cairo_rectangle(cr, 10, 10, extents.width, extents.height);
+        cairo_fill(cr);
+
+        cairo_font_extents_t fontExtents;
+        cairo_font_extents(cr, &fontExtents);
+
+        cairo_set_source_rgb(cr, 0, 0, 0);
+        printf("x_bearing: %f\n", extents.x_bearing);
+        cairo_move_to(cr, 10, fontExtents.ascent + (extents.height - fontExtents.ascent - fontExtents.descent) / 2);
+        //cairo_move_to(cr, 10 - extents.x_bearing, 10 - extents.y_bearing);
+        cairo_show_text(cr, str);
+
+        cairo_pop_group_to_source(cr);
+        cairo_paint_with_alpha(cr, 1);
+
+        cairo_surface_flush(surface);
+        xcb_flush(conn);*/
 
         usleep(500);
         //usleep(1000*1000/120);
